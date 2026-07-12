@@ -1,7 +1,6 @@
 use axum::{
-    extract::{FromRequestParts, State},
+    extract::FromRequestParts,
     http::request::Parts,
-    RequestPartsExt,
 };
 use axum::async_trait;
 use uuid::Uuid;
@@ -17,7 +16,6 @@ impl FromRequestParts<AppState> for AuthUser {
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
-        let _ = parts.extract::<State<AppState>>().await;
         let header = parts
             .headers
             .get(axum::http::header::AUTHORIZATION)
