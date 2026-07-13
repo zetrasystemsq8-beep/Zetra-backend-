@@ -9,6 +9,8 @@ mod state;
 
 use anyhow::Context;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use sqlx::postgres::PgPoolOptions;
+use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() {
@@ -32,12 +34,13 @@ async fn run() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let cfg = config::Config::from_env()
-        .context("loading configuration")?;
+    // ✅ Step 1: Use Render's DATABASE_URL
+    let database_url = std::env::var("DATABASE_URL")
+        .context("DATABASE_URL must be set")?;
 
-    tokio::fs::create_dir_all(&cfg.upload_dir).await.ok();
-
-    let pool = db::connect(&cfg.database_url)
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
         .await
         .context("connecting to database")?;
 
@@ -45,16 +48,21 @@ async fn run() -> anyhow::Result<()> {
         .await
         .context("running database migrations")?;
 
+    let cfg = config::Config::from_env()
+        .context("loading configuration")?;
+
+    tokio::fs::create_dir_all(&cfg.upload_dir).await.ok();
+
     let state = state::AppState::new(cfg.clone(), pool);
     let app = routes::router(state);
 
-    let listener = tokio::net::TcpListener::bind(&cfg.bind_addr)
-        .await
-        .with_context(|| format!("binding to {}", cfg.bind_addr))?;
+    // ✅ Step 2: Bind to Render's dynamic PORT
+    let port = std::env::var("PORT").unwrap_or("8080".to_string());
+    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
 
-    tracing::info!("Zetra backend listening on {}", cfg.bind_addr);
+    tracing::info!("Zetra backend listening on {}", addr);
 
-    axum::serve(listener, app)
+    axum::serve(tokio::net::TcpListener::bind(addr).await?, app)
         .await
         .context("starting Axum server")?;
 
