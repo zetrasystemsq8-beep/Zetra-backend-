@@ -11,23 +11,18 @@ use anyhow::Context;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    dotenvy::dotenv().ok();
+async fn main() {
+    if let Err(err) = run().await {
+        eprintln!("\n==============================");
+        eprintln!("FATAL ERROR:");
+        eprintln!("{:#}", err);
+        eprintln!("==============================\n");
+        std::process::exit(1);
+    }
+}
 
-    // ===== DEBUG =====
-    eprintln!("========== RENDER DEBUG ==========");
-    eprintln!("PORT = {:?}", std::env::var("PORT"));
-    eprintln!("BIND_ADDR = {:?}", std::env::var("BIND_ADDR"));
-    eprintln!(
-        "DATABASE_URL present = {}",
-        std::env::var("DATABASE_URL").is_ok()
-    );
-    eprintln!(
-        "JWT_SECRET present = {}",
-        std::env::var("JWT_SECRET").is_ok()
-    );
-    eprintln!("==================================");
-    // ==================
+async fn run() -> anyhow::Result<()> {
+    dotenvy::dotenv().ok();
 
     tracing_subscriber::registry()
         .with(
@@ -37,23 +32,31 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let cfg = config::Config::from_env().context("loading configuration")?;
+    let cfg = config::Config::from_env()
+        .context("loading configuration")?;
 
     tokio::fs::create_dir_all(&cfg.upload_dir).await.ok();
 
-    let pool = db::connect(&cfg.database_url).await?;
-    db::migrate(&pool).await?;
+    let pool = db::connect(&cfg.database_url)
+        .await
+        .context("connecting to database")?;
+
+    db::migrate(&pool)
+        .await
+        .context("running database migrations")?;
 
     let state = state::AppState::new(cfg.clone(), pool);
     let app = routes::router(state);
 
     let listener = tokio::net::TcpListener::bind(&cfg.bind_addr)
         .await
-        .with_context(|| format!("binding {}", cfg.bind_addr))?;
+        .with_context(|| format!("binding to {}", cfg.bind_addr))?;
 
     tracing::info!("Zetra backend listening on {}", cfg.bind_addr);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .await
+        .context("starting Axum server")?;
 
     Ok(())
 }
