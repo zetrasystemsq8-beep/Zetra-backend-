@@ -14,12 +14,31 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
+    // ===== DEBUG =====
+    eprintln!("========== RENDER DEBUG ==========");
+    eprintln!("PORT = {:?}", std::env::var("PORT"));
+    eprintln!("BIND_ADDR = {:?}", std::env::var("BIND_ADDR"));
+    eprintln!(
+        "DATABASE_URL present = {}",
+        std::env::var("DATABASE_URL").is_ok()
+    );
+    eprintln!(
+        "JWT_SECRET present = {}",
+        std::env::var("JWT_SECRET").is_ok()
+    );
+    eprintln!("==================================");
+    // ==================
+
     tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
     let cfg = config::Config::from_env().context("loading configuration")?;
+
     tokio::fs::create_dir_all(&cfg.upload_dir).await.ok();
 
     let pool = db::connect(&cfg.database_url).await?;
@@ -31,7 +50,10 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&cfg.bind_addr)
         .await
         .with_context(|| format!("binding {}", cfg.bind_addr))?;
+
     tracing::info!("Zetra backend listening on {}", cfg.bind_addr);
+
     axum::serve(listener, app).await?;
+
     Ok(())
 }
