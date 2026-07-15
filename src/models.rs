@@ -71,3 +71,30 @@ pub struct Pagination {
 }
 
 fn default_limit() -> i64 { 50 }
+
+/// A registered Zetra ecosystem app (NAI, Nigergram, ZTC, etc.)
+/// allowed to send messages/verification codes to user inboxes.
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct ServiceApp {
+    pub id: Uuid,
+    pub name: String,
+    #[serde(skip_serializing)]
+    pub api_key_hash: String,
+    pub created_at: DateTime<Utc>,
+    pub revoked_at: Option<DateTime<Utc>>,
+}
+
+/// A message delivered to a user's Zetra inbox — typically a
+/// verification code sent from another Zetra app.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct Message {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub from_app: String,
+    pub kind: String,
+    pub subject: String,
+    pub body: String,
+    pub code: Option<String>,
+    pub read_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
