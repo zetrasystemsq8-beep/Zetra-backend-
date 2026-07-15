@@ -1,8 +1,7 @@
 use axum::{extract::State, Json};
-use argon2::{password_hash::{rand_core::OsRng, PasswordHasher, SaltString}, Argon2};
+use argon2::{password_hash::{rand_core::OsRng, SaltString}, Argon2};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
