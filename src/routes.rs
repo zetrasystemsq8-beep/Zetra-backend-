@@ -22,7 +22,11 @@ pub fn router(state: AppState) -> Router {
         .route("/comments", get(handlers::comments::list).post(handlers::comments::create))
         .route("/comments/:id", delete(handlers::comments::delete))
         .route("/media/image", post(handlers::media::upload_image))
-        .route("/media/video", post(handlers::media::upload_video));
+        .route("/media/video", post(handlers::media::upload_video))
+        .route("/messages/send", post(handlers::messages::send_message))
+        .route("/users/me/messages", get(handlers::messages::list_messages))
+        .route("/messages/:id/read", post(handlers::messages::mark_read))
+        .route("/admin/service-apps", post(handlers::messages::register_service_app));
 
     Router::new()
         .route("/healthz", get(|| async { (StatusCode::OK, "ok") }))
