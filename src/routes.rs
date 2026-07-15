@@ -21,7 +21,9 @@ pub fn router(state: AppState) -> Router {
         .route("/comments", get(handlers::comments::list).post(handlers::comments::create))
         .route("/comments/:id", delete(handlers::comments::delete))
         .route("/media/image", post(handlers::media::upload_image))
-        .route("/media/video", post(handlers::media::upload_video));
+        .route("/media/video", post(handlers::media::upload_video))
+        .route("/identity/create", post(handlers::identity::create_identity))
+        .route("/identity/:zetra_id/messages", get(handlers::identity::get_messages));
 
     Router::new()
         .route("/healthz", get(|| async { (StatusCode::OK, "ok") }))
