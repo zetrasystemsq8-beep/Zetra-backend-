@@ -9,6 +9,9 @@ pub struct User {
     pub email: String,
     #[serde(skip_serializing)]
     pub password_hash: String,
+    pub zetra_id: String,
+    pub zetramail: String,
+    pub phone: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -18,12 +21,23 @@ pub struct PublicUser {
     pub id: Uuid,
     pub username: String,
     pub email: String,
+    pub zetra_id: String,
+    pub zetramail: String,
+    pub phone: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
 impl From<User> for PublicUser {
     fn from(u: User) -> Self {
-        Self { id: u.id, username: u.username, email: u.email, created_at: u.created_at }
+        Self {
+            id: u.id,
+            username: u.username,
+            email: u.email,
+            zetra_id: u.zetra_id,
+            zetramail: u.zetramail,
+            phone: u.phone,
+            created_at: u.created_at,
+        }
     }
 }
 
