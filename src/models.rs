@@ -48,6 +48,23 @@ pub struct MediaRecord {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct Identity {
+    pub id: Uuid,
+    pub zetra_id: String,
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct Message {
+    pub id: Uuid,
+    pub identity_id: Uuid,
+    pub sender: String,
+    pub content: String,
+    pub received_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Pagination {
     #[serde(default = "default_limit")]
