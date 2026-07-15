@@ -20,12 +20,16 @@ pub struct RegisterInput {
     pub email: String,
     #[validate(length(min = 8, max = 128))]
     pub password: String,
+    pub phone: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct LoginInput {
-    #[validate(email)]
-    pub email: String,
+    /// Accepts a Zetra ID (ZT100000001), username, ZetraMail
+    /// (name@ztmail.zt), verified phone, or external email — all
+    /// resolve to the same account.
+    #[validate(length(min = 1))]
+    pub identifier: String,
     #[validate(length(min = 1))]
     pub password: String,
 }
@@ -81,16 +85,23 @@ async fn issue_pair(state: &AppState, user: User) -> ApiResult<TokenPair> {
 pub async fn register(State(state): State<AppState>, Json(input): Json<RegisterInput>) -> ApiResult<Json<TokenPair>> {
     input.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
     let hash = password::hash_password(&input.password)?;
+    let zetramail = format!("{}@ztmail.zt", input.username.to_lowercase());
+
     let rec = sqlx::query_as::<_, User>(
-        "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING *"
+        "INSERT INTO users (username, email, password_hash, zetramail, phone)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *"
     )
     .bind(&input.username)
     .bind(&input.email.to_lowercase())
     .bind(&hash)
+    .bind(&zetramail)
+    .bind(&input.phone)
     .fetch_one(&state.db)
     .await
     .map_err(|e| match &e {
-        sqlx::Error::Database(db) if db.constraint().is_some() => ApiError::Conflict("email or username already in use".into()),
+        sqlx::Error::Database(db) if db.constraint().is_some() => {
+            ApiError::Conflict("username, email, phone, or ZetraMail already in use".into())
+        }
         _ => ApiError::Sqlx(e),
     })?;
     Ok(Json(issue_pair(&state, rec).await?))
@@ -98,11 +109,22 @@ pub async fn register(State(state): State<AppState>, Json(input): Json<RegisterI
 
 pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>) -> ApiResult<Json<TokenPair>> {
     input.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
-    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
-        .bind(input.email.to_lowercase())
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(ApiError::Unauthorized)?;
+    let identifier = input.identifier.trim().to_lowercase();
+
+    let user = sqlx::query_as::<_, User>(
+        "SELECT * FROM users
+         WHERE lower(zetra_id) = $1
+            OR lower(username) = $1
+            OR lower(zetramail) = $1
+            OR lower(email) = $1
+            OR phone = $1
+         LIMIT 1"
+    )
+    .bind(&identifier)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ApiError::Unauthorized)?;
+
     if !password::verify_password(&input.password, &user.password_hash) {
         return Err(ApiError::Unauthorized);
     }
@@ -119,7 +141,6 @@ pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshInp
         .fetch_optional(&state.db)
         .await?
         .ok_or(ApiError::Unauthorized)?;
-    // Revoke previous non-expired tokens for this user (simple rotation policy).
     sqlx::query("UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL")
         .bind(user.id)
         .execute(&state.db)
