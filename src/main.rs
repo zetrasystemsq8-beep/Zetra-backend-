@@ -51,13 +51,18 @@ async fn run() -> anyhow::Result<()> {
     let cfg = config::Config::from_env()
         .context("loading configuration")?;
 
-    tokio::fs::create_dir_all(&cfg.upload_dir).await.ok();
+    tokio::fs::create_dir_all(&cfg.upload_dir)
+        .await
+        .ok();
 
-    let state = state::AppState::new(cfg.clone(), pool);
+    let state = state::AppState::new(cfg.clone(), pool)
+        .await
+        .context("creating app state")?;
 
     let app = routes::router(state);
 
-    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| "8080".to_string());
 
     let addr: SocketAddr = format!("0.0.0.0:{}", port)
         .parse()
@@ -65,9 +70,12 @@ async fn run() -> anyhow::Result<()> {
 
     tracing::info!("Zetra backend listening on {}", addr);
 
-    axum::serve(tokio::net::TcpListener::bind(addr).await?, app)
-        .await
-        .context("starting Axum server")?;
+    axum::serve(
+        tokio::net::TcpListener::bind(addr).await?,
+        app,
+    )
+    .await
+    .context("starting Axum server")?;
 
     Ok(())
-}
+        }
