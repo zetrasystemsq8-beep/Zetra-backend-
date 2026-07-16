@@ -8,7 +8,7 @@ use validator::Validate;
 use crate::{
     auth::{jwt, middleware::AuthUser, password},
     error::{ApiError, ApiResult},
-    models::{PublicUser, User},
+    models::{Message, PublicUser, User},
     state::AppState,
 };
 
@@ -25,9 +25,6 @@ pub struct RegisterInput {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct LoginInput {
-    /// Accepts a Zetra ID (ZT100000001), username, ZetraMail
-    /// (name@ztmail.zt), verified phone, or external email — all
-    /// resolve to the same account.
     #[validate(length(min = 1))]
     pub identifier: String,
     #[validate(length(min = 1))]
@@ -37,6 +34,11 @@ pub struct LoginInput {
 #[derive(Debug, Deserialize)]
 pub struct RefreshInput {
     pub refresh_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyInput {
+    pub code: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,6 +57,27 @@ fn hash_refresh(token: &str) -> String {
         .hash_password(token.as_bytes(), &salt)
         .map(|h| h.to_string())
         .unwrap_or_default()
+}
+
+/// Generates a random 6-digit numeric code, e.g. "038219".
+fn generate_otp() -> String {
+    let n = (Uuid::new_v4().as_u128() % 1_000_000) as u32;
+    format!("{:06}", n)
+}
+
+async fn send_verification_code(state: &AppState, user_id: Uuid) -> ApiResult<()> {
+    let code = generate_otp();
+    sqlx::query_as::<_, Message>(
+        "INSERT INTO messages (user_id, from_app, kind, subject, body, code)
+         VALUES ($1, 'zetra', 'verification_code', $2, $3, $4) RETURNING *"
+    )
+    .bind(user_id)
+    .bind("Verify your Zetra ID")
+    .bind(format!("Use this code to verify your Zetra ID: {code}"))
+    .bind(&code)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(())
 }
 
 async fn issue_pair(state: &AppState, user: User) -> ApiResult<TokenPair> {
@@ -104,6 +127,9 @@ pub async fn register(State(state): State<AppState>, Json(input): Json<RegisterI
         }
         _ => ApiError::Sqlx(e),
     })?;
+
+    send_verification_code(&state, rec.id).await?;
+
     Ok(Json(issue_pair(&state, rec).await?))
 }
 
@@ -154,4 +180,42 @@ pub async fn me(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json
         .fetch_one(&state.db)
         .await?;
     Ok(Json(u.into()))
+}
+
+/// Checks the code the user entered against their most recent
+/// unread verification_code message, and marks the account verified.
+pub async fn verify(State(state): State<AppState>, user: AuthUser, Json(input): Json<VerifyInput>) -> ApiResult<Json<PublicUser>> {
+    let code = input.code.trim();
+
+    let matched = sqlx::query_as::<_, Message>(
+        "SELECT * FROM messages
+         WHERE user_id = $1 AND kind = 'verification_code' AND code = $2 AND read_at IS NULL
+         ORDER BY created_at DESC LIMIT 1"
+    )
+    .bind(user.id)
+    .bind(code)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| ApiError::BadRequest("Invalid or expired code".into()))?;
+
+    sqlx::query("UPDATE messages SET read_at = NOW() WHERE id = $1")
+        .bind(matched.id)
+        .execute(&state.db)
+        .await?;
+
+    let u = sqlx::query_as::<_, User>(
+        "UPDATE users SET verified = true, updated_at = NOW() WHERE id = $1 RETURNING *"
+    )
+    .bind(user.id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(u.into()))
+}
+
+/// Sends a fresh verification code if the user didn't get the
+/// first one or it expired in their inbox.
+pub async fn resend_code(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<serde_json::Value>> {
+    send_verification_code(&state, user.id).await?;
+    Ok(Json(serde_json::json!({ "sent": true })))
 }
