@@ -12,6 +12,7 @@ pub struct User {
     pub zetra_id: String,
     pub zetramail: String,
     pub phone: Option<String>,
+    pub verified: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -24,6 +25,7 @@ pub struct PublicUser {
     pub zetra_id: String,
     pub zetramail: String,
     pub phone: Option<String>,
+    pub verified: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -36,6 +38,7 @@ impl From<User> for PublicUser {
             zetra_id: u.zetra_id,
             zetramail: u.zetramail,
             phone: u.phone,
+            verified: u.verified,
             created_at: u.created_at,
         }
     }
@@ -72,8 +75,6 @@ pub struct Pagination {
 
 fn default_limit() -> i64 { 50 }
 
-/// A registered Zetra ecosystem app (NAI, Nigergram, ZTC, etc.)
-/// allowed to send messages/verification codes to user inboxes.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct ServiceApp {
     pub id: Uuid,
@@ -84,8 +85,6 @@ pub struct ServiceApp {
     pub revoked_at: Option<DateTime<Utc>>,
 }
 
-/// A message delivered to a user's Zetra inbox — typically a
-/// verification code sent from another Zetra app.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Message {
     pub id: Uuid,
@@ -97,4 +96,4 @@ pub struct Message {
     pub code: Option<String>,
     pub read_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
-}
+    }
