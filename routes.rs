@@ -1,17 +1,26 @@
-use axum::{Router, routing::get};
+use axum::{
+    routing::{get, post, delete},
+    Router,
+};
+
 use crate::state::AppState;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        // ✅ Root route for quick browser test
-        .route("/", get(|| async { "✅ Backend is running on Render!" }))
-        // ✅ Health check route
+        // Root
+        .route("/", get(|| async { "✅ Zetra Backend is running!" }))
+
+        // Health
         .route("/health", get(|| async { "✅ Health OK" }))
-        // Merge in your other routes (auth, handlers, etc.)
+
+        // Storage
+        .route("/api/storage/upload", post(crate::storage::handler::upload_file))
+        .route("/api/storage/delete/:id", delete(crate::storage::handler::delete_file))
+
+        // Existing routes
         .merge(other_routes(state))
 }
 
-// Example placeholder for your other routes
 fn other_routes(_state: AppState) -> Router {
     Router::new()
         .route("/example", get(|| async { "Example route works!" }))
