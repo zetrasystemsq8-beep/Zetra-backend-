@@ -17,6 +17,8 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/refresh", post(handlers::auth::refresh))
         .route("/auth/me", get(handlers::auth::me))
+        .route("/auth/verify", post(handlers::auth::verify))
+        .route("/auth/resend-code", post(handlers::auth::resend_code))
         .route("/users/me/zetra-id", get(handlers::users::me_zetra_id))
         .route("/users/:id", get(handlers::users::get_user))
         .route("/comments", get(handlers::comments::list).post(handlers::comments::create))
