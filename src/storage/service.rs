@@ -1,12 +1,17 @@
 use anyhow::Result;
 use aws_config::BehaviorVersion;
-use aws_sdk_s3::Client;
 use aws_credential_types::Credentials;
+use aws_sdk_s3::{
+    config::{Region, Builder},
+    Client,
+};
+use bytes::Bytes;
 
 use crate::config::Config;
 
 pub struct StorageService {
     pub client: Client,
+    pub bucket: String,
 }
 
 impl StorageService {
@@ -21,12 +26,54 @@ impl StorageService {
 
         let shared_config = aws_config::defaults(BehaviorVersion::latest())
             .credentials_provider(credentials)
-            .region(aws_sdk_s3::config::Region::new("us-west-004"))
+            .region(Region::new("us-east-005"))
             .load()
             .await;
 
-        let client = Client::new(&shared_config);
+        let s3_config = Builder::from(&shared_config)
+            .endpoint_url(
+                "https://s3.us-east-005.backblazeb2.com"
+            )
+            .force_path_style(true)
+            .build();
 
-        Ok(Self { client })
+        let client = Client::from_conf(s3_config);
+
+        Ok(Self {
+            client,
+            bucket: cfg.b2_bucket_name.clone(),
+        })
+    }
+
+    pub async fn upload(
+        &self,
+        key: String,
+        data: Bytes,
+        content_type: String,
+    ) -> Result<String> {
+        self.client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(&key)
+            .body(data.into())
+            .content_type(content_type)
+            .send()
+            .await?;
+
+        Ok(key)
+    }
+
+    pub async fn delete(
+        &self,
+        key: String,
+    ) -> Result<()> {
+        self.client
+            .delete_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await?;
+
+        Ok(())
     }
 }
