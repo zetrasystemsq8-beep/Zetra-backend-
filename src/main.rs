@@ -6,11 +6,12 @@ mod handlers;
 mod models;
 mod routes;
 mod state;
+mod storage;
 
 use anyhow::Context;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
 async fn main() {
@@ -34,7 +35,6 @@ async fn run() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // ✅ Step 1: Use Render's DATABASE_URL
     let database_url = std::env::var("DATABASE_URL")
         .context("DATABASE_URL must be set")?;
 
@@ -54,11 +54,14 @@ async fn run() -> anyhow::Result<()> {
     tokio::fs::create_dir_all(&cfg.upload_dir).await.ok();
 
     let state = state::AppState::new(cfg.clone(), pool);
+
     let app = routes::router(state);
 
-    // ✅ Step 2: Bind to Render's dynamic PORT
-    let port = std::env::var("PORT").unwrap_or("8080".to_string());
-    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+
+    let addr: SocketAddr = format!("0.0.0.0:{}", port)
+        .parse()
+        .unwrap();
 
     tracing::info!("Zetra backend listening on {}", addr);
 
