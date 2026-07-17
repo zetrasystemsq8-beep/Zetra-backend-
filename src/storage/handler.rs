@@ -8,10 +8,12 @@ use bytes::Bytes;
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::auth::middleware::AuthUser;
 use crate::state::AppState;
 
 pub async fn upload_file(
     State(state): State<AppState>,
+    user: AuthUser,
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
 
@@ -51,6 +53,8 @@ pub async fn upload_file(
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+        tracing::info!("User {} uploaded file: {}", user.id, key);
+
         return Ok(Json(json!({
             "success": true,
             "key": key
@@ -63,6 +67,7 @@ pub async fn upload_file(
 
 pub async fn delete_file(
     State(state): State<AppState>,
+    user: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
 
@@ -71,6 +76,8 @@ pub async fn delete_file(
         .delete(id.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    tracing::info!("User {} deleted file: {}", user.id, id);
 
     Ok(Json(json!({
         "success": true,
