@@ -1,3 +1,19 @@
+use anyhow::Result;
+use aws_config::BehaviorVersion;
+use aws_credential_types::Credentials;
+use aws_sdk_s3::{
+    config::{Region, Builder},
+    Client,
+};
+use bytes::Bytes;
+
+use crate::config::Config;
+
+pub struct StorageService {
+    pub client: Client,
+    pub bucket: String,
+}
+
 impl StorageService {
     pub async fn new(cfg: &Config) -> Result<Self> {
         let credentials = Credentials::new(
