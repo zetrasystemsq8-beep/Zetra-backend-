@@ -1,19 +1,3 @@
-use anyhow::Result;
-use aws_config::BehaviorVersion;
-use aws_credential_types::Credentials;
-use aws_sdk_s3::{
-    config::{Region, Builder},
-    Client,
-};
-use bytes::Bytes;
-
-use crate::config::Config;
-
-pub struct StorageService {
-    pub client: Client,
-    pub bucket: String,
-}
-
 impl StorageService {
     pub async fn new(cfg: &Config) -> Result<Self> {
         let credentials = Credentials::new(
@@ -24,17 +8,12 @@ impl StorageService {
             "backblaze-b2",
         );
 
-        let shared_config = aws_config::defaults(BehaviorVersion::latest())
+        let s3_config = Builder::new()
             .credentials_provider(credentials)
             .region(Region::new("us-east-005"))
-            .load()
-            .await;
-
-        let s3_config = Builder::from(&shared_config)
-            .endpoint_url(
-                "https://s3.us-east-005.backblazeb2.com"
-            )
+            .endpoint_url("https://s3.us-east-005.backblazeb2.com")
             .force_path_style(true)
+            .behavior_version(BehaviorVersion::latest())
             .build();
 
         let client = Client::from_conf(s3_config);
